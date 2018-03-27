@@ -1,24 +1,24 @@
-var cheerio = require('cheerio');
-var http = require('http');
-var iconv = require('iconv-lite');
-var fs = require('fs');
+let cheerio = require('cheerio');
+let http = require('http');
+let iconv = require('iconv-lite');
+let fs = require('fs');
 
-// var movieUrl = 'http://www.dytt8.net/html/gndy/dyzz/index.html';
-var movieUrl = 'http://www.dytt8.net/html/gndy/dyzz/list_23_';
+// let movieUrl = 'http://www.dytt8.net/html/gndy/dyzz/index.html';
+let movieUrl = 'http://www.dytt8.net/html/gndy/dyzz/list_23_';
 
-var index = 1;
-var titles = [];
+let index = 1; //抓取当前页码
+let titles = [];
 
-let titleHrefCount = 1
-let btCount = 0
+let btCount = 0; //获取下载链接循环的索引
 
 let title_href = []
-let btLink = []
+let movieName = [];	//电影名称
+let btLink = [];  //电影下载连接
 
 function getTitle(url,i){
 	console.log("正在获取第" + i + "页的内容"); 
 	http.get(movieUrl+i+'.html',function(res){
-		var chunks = [];
+		let chunks = [];
 		res.on('data',function(chunk){
 			chunks.push(chunk);
 		});
@@ -28,10 +28,10 @@ function getTitle(url,i){
 		res.on('end',function(){
 			//由于咱们发现此网页的编码格式为gb2312，所以需要对其进行转码，否则乱码
 	    	//依据：“<meta http-equiv="Content-Type" content="text/html; charset=gb2312">”
-	    	 var html = iconv.decode(Buffer.concat(chunks), 'gb2312');
-	    	 var $ = cheerio.load(html,{decodeEntities: false});
+	    	 let html = iconv.decode(Buffer.concat(chunks), 'gb2312');
+	    	 let $ = cheerio.load(html,{decodeEntities: false});
 	    	 $('.co_content8 .ulink').each(function (idx, element) {
-		      var $element = $(element);
+		      let $element = $(element);
 		      titles.push({
 		        title: $element.text()
 		      })
@@ -69,7 +69,6 @@ const getTitleHref = (url, page, i) => {
         })
       })
       if(i < page) {
-       
         getTitleHref(movieUrl, page, ++index )
       } else {
       	// console.log(title_href.length);
@@ -80,7 +79,7 @@ const getTitleHref = (url, page, i) => {
 }
 
 /**
- * 获取BT种子
+ * 获取下载链接
  *
  * @param {Arrary} urls
  * @param {Number} n
@@ -88,16 +87,24 @@ const getTitleHref = (url, page, i) => {
 function getBtLink(urls,n){
 	console.log("正在获取第" + n + "个url的内容");
 	http.get('http://www.dytt8.net' + urls[n].titleHref,function(res){
-		var chunks = [];
+		let chunks = [];
 		res.on('data',function(chunk){
 			chunks.push(chunk);
 		})
 		res.on('end',function(){
-			var html = iconv.decode(Buffer.concat(chunks),'gb2312');
-			var $ = cheerio.load(html,{decodeEntities:false});
+			let html = iconv.decode(Buffer.concat(chunks),'gb2312');
+			let $ = cheerio.load(html,{decodeEntities:false});
+
+			// 获取电影标题
+			$(".bd3r .co_area2 .title_all h1").children('font').each(function(idx,element){
+				let $element = $(element);
+				movieName.push($element.text())
+			})
+
+			// 获取电影链接
 			$('#Zoom td').children('a').each(function(idx, element){
-				var $element = $(element);
-				console.log($element.attr('href'));
+				let $element = $(element);
+				// console.log($element.attr('href'));
 				btLink.push({
 					bt:$element.attr('href')
 				})
@@ -106,13 +113,21 @@ function getBtLink(urls,n){
 			if(n < urls.length-1){
 				getBtLink(urls, ++btCount);
 			}else{
-				console.log("btlink获取完毕！");
-		        // console.log(btLink);   
-		        var content = '';
-		        btLink.forEach((item,n)=>{
-		        	content+=item.bt+'\n\n';
+				console.log("下载链接获取完毕！");
+		        let content = '';
+		        // console.log(movieName.length);
+		        // console.log(btLink.length);
+		        btLink = btLink.filter( item => {
+		        	return item.bt.indexOf('ftp') >=0;
 		        })
-		        fs.writeFile("DownLink.txt",content,function(err){
+		       /* console.log(btLink);
+		        console.log(btLink.length);*/
+		        movieName.forEach((item,n)=>{
+		        	// console.log(n);
+		        	// content+=item.bt+'\n\n';
+		        	content+="<b style='color:#009a8c;'>"+item+"：</b>"+btLink[n].bt+'<br/><br/>';
+		        })
+		        fs.writeFile("DownLink.html",content,function(err){
 		        	if (err) throw err ;
                     console.log("File Saved !"); //文件被保存
 		        })
@@ -123,7 +138,7 @@ function getBtLink(urls,n){
 function main() {
   console.log("开始爬取");
   // getTitle(movieUrl, index);
-  getTitleHref(movieUrl,1,index)
+  getTitleHref(movieUrl,100,index)
 }
 
 main(); //运行主函数
